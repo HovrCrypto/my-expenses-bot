@@ -179,10 +179,9 @@
   <div class="cat-chip active" data-cat="all"><div class="cat-icon">📊</div><div class="cat-name">Всі</div></div>
   <div class="cat-chip" data-cat="food"><div class="cat-icon">🛒</div><div class="cat-name">Продукти</div></div>
   <div class="cat-chip" data-cat="restaurant"><div class="cat-icon">🍽️</div><div class="cat-name">Ресторани</div></div>
-  <div class="cat-chip" data-cat="car"><div class="cat-icon">🚗</div><div class="cat-name">Автомобіль</div></div>
+  <div class="cat-chip" data-cat="car"><div class="cat-icon">🚗</div><div class="cat-name">Авто</div></div>
   <div class="cat-chip" data-cat="health"><div class="cat-icon">💊</div><div class="cat-name">Здоров'я</div></div>
   <div class="cat-chip" data-cat="fun"><div class="cat-icon">🎮</div><div class="cat-name">Розваги</div></div>
-  <div class="cat-chip" data-cat="gym"><div class="cat-icon">🏋️‍♂️</div><div class="cat-name">Спортзал</div></div>
   <div class="cat-chip" data-cat="shopping"><div class="cat-icon">🛍️</div><div class="cat-name">Покупки</div></div>
   <div class="cat-chip" data-cat="bills"><div class="cat-icon">🏠</div><div class="cat-name">Комунальні</div></div>
   <div class="cat-chip" data-cat="work"><div class="cat-icon">💼</div><div class="cat-name">Робота</div></div>
@@ -232,10 +231,9 @@
     <div class="cat-picker" id="cat-picker">
       <div class="cat-pill active" data-cat="food">🛒 Продукти</div>
       <div class="cat-pill" data-cat="restaurant">🍽️ Ресторани</div>
-      <div class="cat-pill" data-cat="car">🚗 Автомобіль</div>
+      <div class="cat-pill" data-cat="car">🚗 Авто</div>
       <div class="cat-pill" data-cat="health">💊 Здоров'я</div>
       <div class="cat-pill" data-cat="fun">🎮 Розваги</div>
-      <div class="cat-pill" data-cat="gym">🏋️‍♂️ Спортзал</div>
       <div class="cat-pill" data-cat="shopping">🛍️ Покупки</div>
       <div class="cat-pill" data-cat="bills">🏠 Комунальні та абонпл.</div>
       <div class="cat-pill" data-cat="work">💼 Робота</div>
@@ -287,18 +285,17 @@ async function sheetsGet() {
 }
   
   const CATS = {
-    food:       { label: 'Продукти',    icon: '🛒', subcats: ['E.Leclerc', 'SuperU', 'Інше'] },
-    restaurant: { label: 'Ресторани',   icon: '🍽️', subcats: [] },
-    car:        { label: 'Автомобіль',  icon: '🚗', subcats: ['Бензин', 'Страховка', 'Інше'] },
-    health:     { label: "Здоров'я",    icon: '💊', subcats: ['Медична перевірка', 'Дерматолог', 'Ліки'] },
-    fun:        { label: 'Розваги',     icon: '🎮', subcats: [] },
-    gym :       { label: 'Спортзал',    icon: '🏋️‍♂️', subcats: ['Абонимент'] },
-    shopping:   { label: 'Покупки',     icon: '🛍️', subcats: ['Temu', 'Adidas', 'Інше'] },
-    bills:      { label: 'Комунальні та абонпл.', icon: '🏠', subcats: ['Оренда', 'Підписки', 'Інше'] },
-    work:       { label: 'Робота',      icon: '💼', subcats: ['Проксі', 'хз', 'Інше'] },
-    invest:     { label: 'Інвестиції',  icon: '📈', subcats: [] },
-    other:      { label: 'Інше',        icon: '📦', subcats: [] },
-    income :    { label: 'Дохід',       icon: '💸', subcats: ['Зарплата','Продаж', 'Інше']}
+    food:       { label: 'Продукти',              icon: '🛒', subcats: ['E.Leclerc', 'SuperU', 'Інше'] },
+    restaurant: { label: 'Ресторани',             icon: '🍽️', subcats: [] },
+    car:        { label: 'Авто',                  icon: '🚗', subcats: ['Бензин', 'Страховка', 'Інше'] },
+    health:     { label: "Здоров'я",              icon: '💊', subcats: ['Медична перевірка', 'Дерматолог', 'Ліки'] },
+    fun:        { label: 'Розваги',               icon: '🎮', subcats: [] },
+    shopping:   { label: 'Покупки',               icon: '🛍️', subcats: ['Temu', 'Adidas', 'Інше'] },
+    bills:      { label: 'Комунальні та абонпл.', icon: '🏠', subcats: ['Оренда', 'Підписки', 'Спортзал'] },
+    work:       { label: 'Робота',                icon: '💼', subcats: ['Проксі', 'хз', 'Інше'] },
+    invest:     { label: 'Інвестиції',            icon: '📈', subcats: [] },
+    other:      { label: 'Інше',                  icon: '📦', subcats: [] },
+    income :    { label: 'Дохід',                 icon: '💸', subcats: ['Зарплата','Продаж', 'Інше']}
   };
 
   function loadLocal() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
