@@ -187,10 +187,10 @@
 
 <div class="fab-row">
   <button class="fab income-btn" id="income-btn">
-    <span style="font-size:18px"> </span> Дохід
+    <span style="font-size:18px"></span> Дохід
   </button>
   <button class="fab" id="add-btn">
-    <span style="font-size:18px"> </span> Витрата
+    <span style="font-size:18px"></span> Витрата
   </button>
 </div>
 
@@ -410,7 +410,7 @@ async function sheetsGet() {
 
     document.getElementById('modal-title').textContent = type === 'income' ? 'Новий дохід' : 'Нова витрата';
     saveBtn.className = 'save-btn ' + type;
-    saveBtn.textContent = type === 'income' ? '+ Зберегти дохід' : 'Зберегти витрату';
+    saveBtn.textContent = type === 'income' ? 'Зберегти дохід' : 'Зберегти витрату';
 
     // Show/hide cat picker for income
     document.getElementById('cat-picker').style.display = type === 'income' ? 'none' : 'flex';
