@@ -232,7 +232,11 @@
       <div class="subcat-label">Підкатегорія:</div>
     </div>
 
-    <div class="numpad">
+    <div class="numpad" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="num-btn op-btn" data-d="+">+</div>
+      <div class="num-btn op-btn" data-d="-">−</div>
+      <div class="num-btn" data-d="=">=</div>
+    
       <div class="num-btn" data-d="1">1</div>
       <div class="num-btn" data-d="2">2</div>
       <div class="num-btn" data-d="3">3</div>
@@ -242,9 +246,11 @@
       <div class="num-btn" data-d="7">7</div>
       <div class="num-btn" data-d="8">8</div>
       <div class="num-btn" data-d="9">9</div>
+    
       <div class="num-btn" data-d=".">.</div>
-      <div class="num-btn zero" data-d="0">0</div>
-      <div class="num-btn del" data-d="del">⌫</div>
+      <div class="num-btn" data-d="0">0</div>
+      <div class="num-btn backspace-btn" data-d="del">⌫</div>
+      
     </div>
 
     <button class="save-btn expense" id="save-btn" disabled>Зберегти</button>
@@ -270,11 +276,12 @@ async function sheetsGet() {
     car:        { label: 'Автомобіль',  icon: '🚗', subcats: ['Бензин', 'Страховка', 'Інше'] },
     health:     { label: "Здоров'я",    icon: '💊', subcats: ['Медична перевірка', 'Дерматолог', 'Ліки'] },
     fun:        { label: 'Розваги',     icon: '🎮', subcats: [] },
-    shopping:   { label: 'Покупки',     icon: '🛍️', subcats: [] },
+    shopping:   { label: 'Покупки',     icon: '🛍️', subcats: ['Temu', 'Adidas', 'Інше'] },
     bills:      { label: 'Комунальні та абонпл.', icon: '🏠', subcats: [] },
     work:       { label: 'Робота',      icon: '💼', subcats: [] },
     invest:     { label: 'Інвестиції',  icon: '📈', subcats: [] },
     other:      { label: 'Інше',        icon: '📦', subcats: [] },
+    income :    { label: 'Дохід',       icon: '💸', subcats: ['Зарплата','Продаж', 'Інше']}
   };
 
   function loadLocal() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
@@ -359,9 +366,9 @@ async function sheetsGet() {
       const cls = isIncome ? 'income' : 'expense';
       const subcatHtml = e.subcat ? `<div class="expense-subcat">${e.subcat}</div>` : '';
       return `<div class="expense-item">
-  <div class="expense-icon">${isIncome ? '💰' : catInfo.icon}</div>
+  <div class="expense-icon">${isIncome ? '💸' : catInfo.icon}</div>
   <div class="expense-info">
-    <div class="expense-name">${e.desc || (isIncome ? 'Зарплата' : catInfo.label)}</div>
+    <div class="expense-name">${e.desc || (isIncome ? 'Дохід' : catInfo.label)}</div>
     ${subcatHtml}
     <div class="expense-date">${formatDate(e.date)}</div>
   </div>
@@ -391,14 +398,23 @@ async function sheetsGet() {
   let selectedSubcat = '';
   let currentType = 'expense'; // 'expense' | 'income'
 
+  let prevAmount = 0;
+  let currentOp = '';
+
   const modal = document.getElementById('modal');
   const amountVal = document.getElementById('amount-val');
   const saveBtn = document.getElementById('save-btn');
 
   function openModal(type) {
     currentType = type;
-    amountStr = ''; selectedCat = 'food'; selectedSubcat = '';
+    amountStr = '';
+    prevAmount = 0;
+    currentOp = '';
+    // Якщо це дохід, то категорія автоматично 'income', якщо витрата — за замовчуванням 'food'
+    selectedCat = type === 'income' ? 'income' : 'food'; 
+    selectedSubcat = '';
     document.getElementById('desc-input').value = '';
+    
     // Set current datetime
     const d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -408,11 +424,16 @@ async function sheetsGet() {
     saveBtn.className = 'save-btn ' + type;
     saveBtn.textContent = type === 'income' ? 'Зберегти дохід' : 'Зберегти витрату';
 
-    // Show/hide cat picker for income
-    document.getElementById('cat-picker').style.display = type === 'income' ? 'none' : 'flex';
-    document.getElementById('subcat-picker').classList.remove('visible');
+    // Налаштування блоків для Доходу та Витрати
+    if (type === 'income') {
+      document.getElementById('cat-picker').style.display = 'none'; // ховаємо вибір інших категорій
+      updateSubcats('income'); // АВТОМАТИЧНО викликаємо підкатегорії доходу ('Зарплата', 'Продаж', 'Інше')
+    } else {
+      document.getElementById('cat-picker').style.display = 'flex'; // показуємо категорії витрат
+      document.getElementById('subcat-picker').classList.remove('visible'); // ховаємо підкатегорії, поки не оберуть витрату
+      document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === 'food'));
+    }
 
-    document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === 'food'));
     updateAmount();
     modal.classList.add('open');
     if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
@@ -454,13 +475,50 @@ async function sheetsGet() {
   document.querySelector('.numpad').addEventListener('click', e => {
     const btn = e.target.closest('.num-btn'); if (!btn) return;
     const d = btn.dataset.d;
-    if (d === 'del') { amountStr = amountStr.slice(0,-1); }
-    else if (d === '.') { if (!amountStr.includes('.')) amountStr += amountStr ? '.' : '0.'; }
-    else {
-      if (amountStr.includes('.') && amountStr.split('.')[1]?.length >= 2) return;
-      if (amountStr.length >= 7) return;
-      amountStr += d;
+    
+    if (d === 'del') { 
+      amountStr = amountStr.slice(0,-1); 
     }
+    else if (d === '+' || d === '-' || d === '=') {
+      let currentNum = parseFloat(amountStr) || 0;
+      
+      // Якщо попередня операція існує, виконуємо підрахунок
+      if (currentOp) {
+        if (currentOp === '+') prevAmount += currentNum;
+        if (currentOp === '-') prevAmount = Math.max(0, prevAmount - currentNum);
+        
+        // Одразу виводимо результат на екран, щоб його було видно
+        amountStr = prevAmount === 0 ? '' : prevAmount.toString();
+      } else {
+        // Якщо це перша операція, просто запам'ятовуємо поточне число
+        if (d !== '=') {
+          prevAmount = currentNum;
+        }
+      }
+      
+      // Якщо натиснуто знак операції (+ або -), запам'ятовуємо його і готуємося до нового введення
+      if (d === '+' || d === '-') {
+        currentOp = d;
+        amountStr = ''; // Очищуємо для введення другого числа
+      } else if (d === '=') {
+        // Якщо натиснуто "=", скидаємо операцію, а фінальний результат залишається на екрані
+        currentOp = '';
+        prevAmount = 0;
+      }
+    }
+    else if (d === '.') { 
+      if (!amountStr.includes('.')) amountStr += amountStr ? '.' : '0.'; 
+    }
+    else {
+      // Звичайні цифри (0-9)
+      if (amountStr === '0') amountStr = d;
+      else {
+        if (amountStr.includes('.') && amountStr.split('.')[1]?.length >= 2) return;
+        if (amountStr.length >= 7) return;
+        amountStr += d;
+      }
+    }
+    
     if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
     updateAmount();
   });
@@ -472,7 +530,16 @@ async function sheetsGet() {
 
   // SAVE
   saveBtn.addEventListener('click', async () => {
-    const amount = parseFloat(amountStr);
+    // ЗМІНЕНО НА let замість const, щоб не було помилки Assignment to constant variable!
+    let amount = parseFloat(amountStr);
+    if (!amount || amount <= 0) return;
+    
+    // Якщо користувач ввів число після натискання + або -, рахуємо фінал перед збереженням
+    if (currentOp) {
+      if (currentOp === '+') amount = prevAmount + amount;
+      if (currentOp === '-') amount = Math.max(0, prevAmount - amount);
+    }
+    
     if (!amount || amount <= 0) return;
     const dateVal = document.getElementById('date-input').value;
     const entry = {
