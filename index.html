@@ -330,6 +330,26 @@ async function sheetsGet() {
     return d.toLocaleDateString('uk', { day:'numeric', month:'short' }) + ', ' + d.toLocaleTimeString('uk', { hour:'2-digit', minute:'2-digit' });
   }
 
+  function getDayHeaderLabel(d) {
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) return '<span style="font-size:14px; font-weight:700; color:var(--accent);">Сьогодні</span>';
+    const y = new Date(today); y.setDate(y.getDate() - 1);
+    if (d.toDateString() === y.toDateString()) return '<span style="font-size:14px; font-weight:700; color:var(--muted);">Вчора</span>';
+    
+    const dayNum = d.getDate().toString().padStart(2, '0');
+    const weekdays = ['неділя', 'понеділок', 'вівторок', 'середа', 'четвер', 'п’ятниця', 'субота'];
+    const monthsGenitive = ['січня', 'лютого', 'березня', 'квітня', 'травня', 'червня', 'липня', 'серпня', 'вересня', 'жовтня', 'листопада', 'грудня'];
+    
+    return `
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:22px; font-weight:800; color:#fff; line-height:1;">${dayNum}</span>
+        <span style="font-size:11px; color:var(--muted); font-weight:400; line-height:1.2; text-transform:lowercase;">
+          ${weekdays[d.getDay()]}<br>${monthsGenitive[d.getMonth()]} ${d.getFullYear()}
+        </span>
+      </div>
+    `;
+  }
+
   function render() {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thisMonth = entries.filter(e => new Date(e.date) >= monthStart);
@@ -359,24 +379,45 @@ async function sheetsGet() {
       return;
     }
 
-    list.innerHTML = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date)).map(e => {
+    // Сортуємо транзакції від новіших до старіших
+    const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
+    
+    let finalHtml = '';
+    let lastDateStr = '';
+
+    sorted.forEach(e => {
+      const dateObj = new Date(e.date);
+      const dateStr = dateObj.toDateString(); // отримуємо унікальний рядок дня (напр. "Mon Jun 22 2026")
+
+      // Якщо цей день відрізняється від попереднього — вставляємо заголовок дня
+      if (dateStr !== lastDateStr) {
+        lastDateStr = dateStr;
+        finalHtml += `<div class="day-group-header" style="padding: 16px 4px 6px; margin-top: 6px;">${getDayHeaderLabel(dateObj)}</div>`;
+      }
+
       const isIncome = e.type === 'income';
       const catInfo = CATS[e.cat] || { icon:'📦', label: e.cat };
-      const sign = isIncome ? '+' : '−';
       const cls = isIncome ? 'income' : 'expense';
       const subcatHtml = e.subcat ? `<div class="expense-subcat">${e.subcat}</div>` : '';
-      return `<div class="expense-item" onclick="editEntry('${e.id}')" style="cursor: pointer;">
-  <div class="expense-icon">${isIncome ? '💸' : catInfo.icon}</div>
-  <div class="expense-info">
-    <div class="expense-name">${e.desc || (isIncome ? 'Дохід' : catInfo.label)}</div>
-    ${subcatHtml}
-    <div class="expense-date">${formatDate(e.date)}</div>
-  </div>
-  <div class="expense-amount ${cls}">${formatAmt(e.amount)} €</div>
-  <div class="expense-delete" onclick="event.stopPropagation(); deleteEntry('${e.id}')">✕</div>
-</div>`;
+      
+      // Оскільки є заголовок дня, в самій картці показуємо тільки точний час (години:хвилини)
+      const timeStr = dateObj.toLocaleTimeString('uk', { hour:'2-digit', minute:'2-digit' });
 
-    }).join('');
+      finalHtml += `
+        <div class="expense-item" onclick="if(typeof editEntry === 'function') editEntry('${e.id}')" style="cursor: pointer;">
+          <div class="expense-icon">${isIncome ? '💸' : catInfo.icon}</div>
+          <div class="expense-info">
+            <div class="expense-name">${e.desc || (isIncome ? 'Дохід' : catInfo.label)}</div>
+            ${subcatHtml}
+            <div class="expense-date" style="color: var(--muted); opacity: 0.7;">о ${timeStr}</div>
+          </div>
+          <div class="expense-amount ${cls}">${isIncome ? '+' : '−'} ${formatAmt(e.amount)} €</div>
+          <div class="expense-delete" onclick="event.stopPropagation(); deleteEntry('${e.id}')">✕</div>
+        </div>
+      `;
+    });
+
+    list.innerHTML = finalHtml;
   }
 
   document.getElementById('cat-filter').addEventListener('click', e => {
