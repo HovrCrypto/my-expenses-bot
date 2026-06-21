@@ -2,6 +2,8 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Мої витрати</title>
@@ -161,6 +163,14 @@
   </div>
 </div>
 
+<div style="margin: 18px 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px;">
+  <div style="font-size: 14px; font-weight: 600; margin-bottom: 15px; color: var(--text);">Статистика витрат</div>
+  <div style="position: relative; width: 100%; max-width: 240px; margin: 0 auto 15px;">
+    <canvas id="expenseChart"></canvas>
+  </div>
+  <div id="chart-legends-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px;"></div>
+</div>
+
 <div class="section-header">
   <div class="section-title">Категорії</div>
 </div>
@@ -191,6 +201,8 @@
   <button class="fab income-btn" id="income-btn">Дохід</button>
   <button class="fab" id="add-btn">Витрата</button>
 </div>
+
+
 
 <!-- MODAL -->
 <div class="modal-overlay" id="modal">
@@ -384,6 +396,8 @@ async function sheetsGet() {
       return;
     }
 
+    let expenseChartInstance = null;
+
     // Сортуємо транзакції від новіших до старіших
     const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
     
@@ -423,6 +437,109 @@ async function sheetsGet() {
     });
 
     list.innerHTML = finalHtml;
+
+    // ==========================================
+    // ЛОГІКА ПОБУДОВИ КРУГОВОЇ ДІАГРАМИ (АНАЛІТИКА)
+    // ==========================================
+    const chartExpenses = expenses; // беремо витрати за поточний місяць
+    const categoryTotals = {};
+    
+    // Рахуємо суми для кожної категорії окремо
+    chartExpenses.forEach(e => {
+      categoryTotals[e.cat] = (categoryTotals[e.cat] || 0) + e.amount;
+    });
+
+    const totalExpForChart = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
+
+    // Масиви для даних графіка
+    const chartLabels = [];
+    const chartData = [];
+    const chartColors = [];
+    const legendsHtml = [];
+
+    // Палітра кольорів для гарного відображення категорій
+    const colorPalette = {
+      food: '#ff9f43',       restaurant: '#ff5252',
+      car: '#10ac84',        health: '#00d2d3',
+      fun: '#5f6fff',        shopping: '#ca69ff',
+      bills: '#ff6b6b',      work: '#54a0ff',
+      invest: '#5f27cd',     gym: '#00ea97',
+      other: '#8395a7'
+    };
+
+    // Сортуємо категорії від найбільшої суми витрат до найменшої (як на твоєму скріншоті)
+    const sortedCats = Object.keys(categoryTotals).sort((a, b) => categoryTotals[b] - categoryTotals[a]);
+
+    sortedCats.forEach(catKey => {
+      const amt = categoryTotals[catKey];
+      const pct = totalExpForChart > 0 ? Math.round((amt / totalExpForChart) * 100) : 0;
+      const catInfo = CATS[catKey] || { label: catKey, icon: '📦' };
+      const color = colorPalette[catKey] || '#8395a7';
+
+      chartLabels.push(catInfo.label);
+      chartData.push(amt);
+      chartColors.push(color);
+
+      // Генеруємо текстові рядки легенди (список знизу під графіком)
+      legendsHtml.push(`
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.02);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 12px; height: 12px; background: ${color}; border-radius: 4px;"></div>
+            <span style="font-size: 18px; line-height: 1;">${catInfo.icon}</span>
+            <span style="font-size: 14px; font-weight: 500; color: var(--text);">${catInfo.label}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 14px; font-weight: 700; color: #fff;">${formatAmt(amt)} €</span>
+            <span style="font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 6px; min-width: 38px; text-align: right;">${pct}%</span>
+          </div>
+        </div>
+      `);
+    });
+
+    document.getElementById('chart-legends-list').innerHTML = legendsHtml.join('') || '<div style="font-size:13px; color:var(--muted); text-align:center; padding:10px 0;">Немає даних для аналітики</div>';
+
+    // Ініціалізація або оновлення самого графіка Chart.js
+    const ctx = document.getElementById('expenseChart')?.getContext('2d');
+    if (ctx) {
+      if (expenseChartInstance) {
+        // Якщо графік вже створено — просто оновлюємо дані
+        expenseChartInstance.data.labels = chartLabels;
+        expenseChartInstance.data.datasets[0].data = chartData;
+        expenseChartInstance.data.datasets[0].backgroundColor = chartColors;
+        expenseChartInstance.update();
+      } else {
+        // Створюємо новий екземпляр кругової діаграми (Doughnut)
+        expenseChartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [{
+              data: chartData,
+              backgroundColor: chartColors,
+              borderWidth: 0,
+              hoverOffset: 4
+            }]
+          },
+          options: {
+            plugins: {
+              legend: { display: false }, // вимикаємо стандартну легенду, бо ми зробили власну красиву з іконками
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const value = context.raw || 0;
+                    return ` ${context.label}: ${formatAmt(value)} €`;
+                  }
+                }
+              }
+            },
+            cutout: '70%', // робить діаграму тонким кільцем, як у Revolut
+            responsive: true,
+            maintainAspectRatio: true
+          }
+        });
+      }
+    }
+
   }
 
   document.getElementById('cat-filter').addEventListener('click', e => {
