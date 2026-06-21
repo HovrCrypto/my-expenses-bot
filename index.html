@@ -115,7 +115,7 @@
     .subcat-pill.active { background:rgba(95,111,255,0.1); border-color:rgba(95,111,255,0.4); color:#a0aaff; }
 
     .numpad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
-    .num-btn { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:20px; font-weight:500; padding:16px; cursor:pointer; transition:all 0.1s; text-align:center; }
+    .num-btn { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-size:15px; font-weight:300; padding:10px; cursor:pointer; transition:all 0.1s; text-align:center; }
     .num-btn:active { background:var(--accent-soft); transform:scale(0.95); }
     .num-btn.del { font-size:18px; color:var(--muted); }
     .num-btn.zero { grid-column:span 2; }
@@ -363,15 +363,15 @@ async function sheetsGet() {
       const cls = isIncome ? 'income' : 'expense';
       const subcatHtml = e.subcat ? `<div class="expense-subcat">${e.subcat}</div>` : '';
       return `<div class="expense-item">
-        <div class="expense-icon">${isIncome ? '💚' : catInfo.icon}</div>
-        <div class="expense-info">
-          <div class="expense-name">${e.desc || catInfo.label}</div>
-          ${subcatHtml}
-          <div class="expense-date">${formatDate(e.date)}</div>
-        </div>
-        <div class="expense-amount ${cls}">${sign}${formatAmt(e.amount)} €</div>
-        <div class="expense-delete" onclick="deleteEntry('${e.id}')">✕</div>
-      </div>`;
+  <div class="expense-icon">${isIncome ? '💰' : catInfo.icon}</div>
+  <div class="expense-info">
+    <div class="expense-name">${e.desc || (isIncome ? 'Зарплата' : catInfo.label)}</div>
+    ${subcatHtml}
+    <div class="expense-date">${formatDate(e.date)}</div>
+  </div>
+  <div class="expense-amount ${cls}">${formatAmt(e.amount)} €</div>
+  <div class="expense-delete" onclick="deleteEntry('${e.id}')">✕</div>
+</div>`;
     }).join('');
   }
 
