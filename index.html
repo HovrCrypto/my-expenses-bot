@@ -205,7 +205,7 @@
 
     <div class="modal-type-toggle" id="type-toggle" style="display:none">
       <div class="type-btn active-expense" id="type-expense" onclick="setType('expense')">Витрата</div>
-      <div class="type-btn" id="type-income" onclick="setType('Зарплата')">Дохід</div>
+      <div class="type-btn" id="type-income" onclick="setType('income')">Дохід</div>
     </div>
 
     <div class="amount-display">
@@ -360,10 +360,10 @@ async function sheetsGet() {
       const isIncome = e.type === 'income';
       const catInfo = CATS[e.cat] || { icon:'📦', label: e.cat };
       const sign = isIncome ? '+' : '−';
-      const cls = isIncome ? 'income' : 'expense';
+      const cls = isIncome ? 'Дохід' : 'expense';
       const subcatHtml = e.subcat ? `<div class="expense-subcat">${e.subcat}</div>` : '';
       return `<div class="expense-item">
-        <div class="expense-icon">${isIncome ? '💚' : catInfo.icon}</div>
+        <div class="expense-icon">${isIncome ? '💰' : catInfo.icon}</div>
         <div class="expense-info">
           <div class="expense-name">${e.desc || catInfo.label}</div>
           ${subcatHtml}
