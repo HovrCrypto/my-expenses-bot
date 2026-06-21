@@ -365,7 +365,7 @@ async function sheetsGet() {
       const sign = isIncome ? '+' : '−';
       const cls = isIncome ? 'income' : 'expense';
       const subcatHtml = e.subcat ? `<div class="expense-subcat">${e.subcat}</div>` : '';
-      return `<div class="expense-item">
+      return `<div class="expense-item" onclick="editEntry('${e.id}')" style="cursor: pointer;">
   <div class="expense-icon">${isIncome ? '💸' : catInfo.icon}</div>
   <div class="expense-info">
     <div class="expense-name">${e.desc || (isIncome ? 'Дохід' : catInfo.label)}</div>
@@ -373,8 +373,9 @@ async function sheetsGet() {
     <div class="expense-date">${formatDate(e.date)}</div>
   </div>
   <div class="expense-amount ${cls}">${formatAmt(e.amount)} €</div>
-  <div class="expense-delete" onclick="deleteEntry('${e.id}')">✕</div>
+  <div class="expense-delete" onclick="event.stopPropagation(); deleteEntry('${e.id}')">✕</div>
 </div>`;
+
     }).join('');
   }
 
@@ -386,10 +387,42 @@ async function sheetsGet() {
   });
 
   async function deleteEntry(id) {
-    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    entries = entries.filter(e => e.id !== id); saveLocal(entries); render();
-    try { showSync('🗑️ Видалення...'); await sheetsDelete(id); hideSync(); }
-    catch { showSync('⚠️ Офлайн — видалено локально'); setTimeout(hideSync, 2000); }
+    // Функція розрахунку та видалення
+    const proceedWithDeletion = async () => {
+      if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+      entries = entries.filter(e => e.id !== id); 
+      saveLocal(entries); 
+      render();
+      try { 
+        showSync('🗑️ Видалення...'); 
+        await sheetsDelete(id); 
+        hideSync(); 
+      } catch { 
+        showSync('⚠️ Офлайн — видалено локально'); 
+        setTimeout(hideSync, 2000); 
+      }
+    };
+
+    // Перевіряємо, чи Telegram підтримує метод showPopup (версія 6.2 і вище)
+    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) {
+      tg.showPopup({
+        title: 'Підтвердження',
+        message: 'Ви впевнені, що хочете видалити цю транзакцію?',
+        buttons: [
+          { id: 'delete', type: 'destructive', text: 'Видалити' },
+          { id: 'cancel', type: 'cancel', text: 'Скасувати' }
+        ]
+      }, (buttonId) => {
+        if (buttonId === 'delete') {
+          proceedWithDeletion();
+        }
+      });
+    } else {
+      // Якщо версія Telegram 6.0 або додаток відкритий просто у браузері:
+      if (confirm('Ви впевнені, що хочете видалити цю транзакцію?')) {
+        proceedWithDeletion();
+      }
+    }
   }
 
   // MODAL
@@ -401,11 +434,14 @@ async function sheetsGet() {
   let prevAmount = 0;
   let currentOp = '';
 
+  let editingId = null;
+
   const modal = document.getElementById('modal');
   const amountVal = document.getElementById('amount-val');
   const saveBtn = document.getElementById('save-btn');
 
   function openModal(type) {
+    editingId = null;
     currentType = type;
     amountStr = '';
     prevAmount = 0;
@@ -424,7 +460,7 @@ async function sheetsGet() {
     saveBtn.className = 'save-btn ' + type;
     saveBtn.textContent = type === 'income' ? 'Зберегти дохід' : 'Зберегти витрату';
 
-    // Налаштування блоків для Доходу та Витрати
+    
     if (type === 'income') {
       document.getElementById('cat-picker').style.display = 'none'; // ховаємо вибір інших категорій
       updateSubcats('income'); // АВТОМАТИЧНО викликаємо підкатегорії доходу ('Зарплата', 'Продаж', 'Інше')
@@ -440,6 +476,51 @@ async function sheetsGet() {
   }
 
   function closeModal() { modal.classList.remove('open'); }
+  
+  function editEntry(id) {
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+
+    editingId = id; // Запам'ятовуємо, що ми редагуємо цей ID
+    currentType = entry.type;
+    amountStr = entry.amount.toString();
+    prevAmount = 0;
+    currentOp = '';
+    selectedCat = entry.cat;
+    selectedSubcat = entry.subcat || '';
+
+    document.getElementById('desc-input').value = entry.desc || '';
+    
+    // Форматування дати для інпуту datetime-local
+    const d = new Date(entry.date);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    document.getElementById('date-input').value = d.toISOString().slice(0,16);
+
+    document.getElementById('modal-title').textContent = currentType === 'income' ? 'Редагувати дохід' : 'Редагувати витрату';
+    saveBtn.className = 'save-btn ' + currentType;
+    saveBtn.textContent = 'Оновити запис';
+
+    // Налаштування категорій
+    if (currentType === 'income') {
+      document.getElementById('cat-picker').style.display = 'none';
+      updateSubcats('income');
+    } else {
+      document.getElementById('cat-picker').style.display = 'flex';
+      document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === selectedCat));
+      updateSubcats(selectedCat);
+    }
+
+    // Активуємо обрану підкатегорію, якщо вона є
+    if (selectedSubcat) {
+      setTimeout(() => {
+        document.querySelectorAll('.subcat-pill').forEach(p => p.classList.toggle('active', p.textContent === selectedSubcat));
+      }, 50);
+    }
+
+    updateAmount();
+    modal.classList.add('open');
+    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+  }
 
   document.getElementById('add-btn').addEventListener('click', () => openModal('expense'));
   document.getElementById('income-btn').addEventListener('click', () => openModal('income'));
@@ -529,12 +610,11 @@ async function sheetsGet() {
   }
 
   // SAVE
+  // SAVE
   saveBtn.addEventListener('click', async () => {
-    // ЗМІНЕНО НА let замість const, щоб не було помилки Assignment to constant variable!
     let amount = parseFloat(amountStr);
     if (!amount || amount <= 0) return;
     
-    // Якщо користувач ввів число після натискання + або -, рахуємо фінал перед збереженням
     if (currentOp) {
       if (currentOp === '+') amount = prevAmount + amount;
       if (currentOp === '-') amount = Math.max(0, prevAmount - amount);
@@ -542,22 +622,58 @@ async function sheetsGet() {
     
     if (!amount || amount <= 0) return;
     const dateVal = document.getElementById('date-input').value;
-    const entry = {
-      id: Date.now().toString(),
-      type: currentType,
-      amount,
-      cat: currentType === 'income' ? 'income' : selectedCat,
-      subcat: selectedSubcat,
-      desc: document.getElementById('desc-input').value.trim(),
-      date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
-    };
-    entries.push(entry); saveLocal(entries);
-    closeModal(); filterCat = 'all';
-    document.querySelectorAll('.cat-chip').forEach(c => c.classList.toggle('active', c.dataset.cat === 'all'));
-    render();
-    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-    try { showSync('☁️ Збереження...'); await sheetsAdd(entry); hideSync(); }
-    catch { showSync('⚠️ Офлайн — збережено локально'); setTimeout(hideSync, 2500); }
+    
+    if (editingId) {
+      // РЕЖИМ РЕДАКТУВАННЯ: Знаходимо і оновлюємо існуючий запис локально
+      const index = entries.findIndex(e => e.id === editingId);
+      if (index !== -1) {
+        entries[index] = {
+          ...entries[index], // зберігаємо оригінальний id та інші незмінні поля
+          type: currentType,
+          amount,
+          cat: currentType === 'income' ? 'income' : selectedCat,
+          subcat: selectedSubcat,
+          desc: document.getElementById('desc-input').value.trim(),
+          date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
+        };
+        
+        const updatedEntry = entries[index];
+        saveLocal(entries);
+        closeModal();
+        render();
+        
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        
+        // Відправка оновлення в Google Таблицю (спочатку видаляємо стару дію, потім додаємо нову з тим самим ID, або викликаємо add)
+        try { 
+          showSync('☁️ Оновлення...'); 
+          await sheetsDelete(editingId); // Видаляємо стару транзакцію на сервері
+          await sheetsAdd(updatedEntry); // Записуємо оновлену транзакцію
+          hideSync(); 
+        } catch { 
+          showSync('⚠️ Офлайн — оновлено локально'); 
+          setTimeout(hideSync, 2500); 
+        }
+      }
+    } else {
+      // РЕЖИМ СТВОРЕННЯ: Звичайне додавання нового запису
+      const entry = {
+        id: Date.now().toString(),
+        type: currentType,
+        amount,
+        cat: currentType === 'income' ? 'income' : selectedCat,
+        subcat: selectedSubcat,
+        desc: document.getElementById('desc-input').value.trim(),
+        date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
+      };
+      entries.push(entry); saveLocal(entries);
+      closeModal(); filterCat = 'all';
+      document.querySelectorAll('.cat-chip').forEach(c => c.classList.toggle('active', c.dataset.cat === 'all'));
+      render();
+      if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+      try { showSync('☁️ Збереження...'); await sheetsAdd(entry); hideSync(); }
+      catch { showSync('⚠️ Офлайн — збережено локально'); setTimeout(hideSync, 2500); }
+    }
   });
 
   render();
