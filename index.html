@@ -482,15 +482,16 @@ async function sheetsGet() {
 
       // Генеруємо текстові рядки легенди (список знизу під графіком)
       legendsHtml.push(`
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.02);">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 12px; height: 12px; background: ${color}; border-radius: 4px;"></div>
-            <span style="font-size: 18px; line-height: 1;">${catInfo.icon}</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 38px; height: 38px; background: ${color}22; border: 1px solid ${color}44; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px;">
+              ${catInfo.icon}
+            </div>
             <span style="font-size: 14px; font-weight: 500; color: var(--text);">${catInfo.label}</span>
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
             <span style="font-size: 14px; font-weight: 700; color: #fff;">${formatAmt(amt)} €</span>
-            <span style="font-size: 12px; color: var(--muted); background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 6px; min-width: 38px; text-align: right;">${pct}%</span>
+            <span style="font-size: 11px; color: var(--muted); background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 6px; min-width: 38px; text-align: center;">${pct}%</span>
           </div>
         </div>
       `);
@@ -499,47 +500,60 @@ async function sheetsGet() {
     document.getElementById('chart-legends-list').innerHTML = legendsHtml.join('') || '<div style="font-size:13px; color:var(--muted); text-align:center; padding:10px 0;">Немає даних для аналітики</div>';
 
     // Ініціалізація або оновлення самого графіка Chart.js
-    const ctx = document.getElementById('expenseChart')?.getContext('2d');
-    if (ctx) {
+   // Ініціалізація або оновлення самого графіка Chart.js
+   // Ініціалізація або оновлення самого графіка Chart.js
+   const chartContainer = document.getElementById('expenseChart')?.parentElement;
+    if (chartContainer) {
+      // 1. Якщо графік вже існував — знищуємо його екземпляр
       if (expenseChartInstance) {
-        // Якщо графік вже створено — просто оновлюємо дані
-        expenseChartInstance.data.labels = chartLabels;
-        expenseChartInstance.data.datasets[0].data = chartData;
-        expenseChartInstance.data.datasets[0].backgroundColor = chartColors;
-        expenseChartInstance.update();
-      } else {
-        // Створюємо новий екземпляр кругової діаграми (Doughnut)
-        expenseChartInstance = new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: chartLabels,
-            datasets: [{
-              data: chartData,
-              backgroundColor: chartColors,
-              borderWidth: 0,
-              hoverOffset: 4
-            }]
-          },
-          options: {
-            plugins: {
-              legend: { display: false }, // вимикаємо стандартну легенду, бо ми зробили власну красиву з іконками
-              tooltip: {
-                callbacks: {
-                  label: function(context) {
-                    const value = context.raw || 0;
-                    return ` ${context.label}: ${formatAmt(value)} €`;
-                  }
+        expenseChartInstance.destroy();
+        expenseChartInstance = null;
+      }
+
+      // 2. Повністю очищуємо контейнер і створюємо новий чистий тег <canvas>
+      // Це назавжди прибирає помилку внутрішнього збою ініціалізації Chart.js!
+      chartContainer.innerHTML = '<canvas id="expenseChart"></canvas>';
+
+      // Якщо даних немає (наприклад, порожній місяць), залишаємо пустий контейнер і не малюємо бублик
+      if (chartData.length === 0) {
+        return;
+      }
+
+      // 3. Беремо нове чисте полотно
+      const newCtx = document.getElementById('expenseChart').getContext('2d');
+      
+      // 4. Створюємо новий чистий екземпляр кругової діаграми
+      expenseChartInstance = new Chart(newCtx, {
+        type: 'doughnut',
+        data: {
+          labels: chartLabels,
+          datasets: [{
+            data: chartData,
+            backgroundColor: chartColors,
+            borderWidth: 3,                 // Роздільні смужки між шматочками
+            borderColor: 'var(--surface)',  // Колір лінії під фон картки
+            hoverBorderWidth: 4,
+            hoverOffset: 4
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { display: false }, // власна кастомна легенда з кружечками
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw || 0;
+                  return ` ${context.label}: ${formatAmt(value)} €`;
                 }
               }
-            },
-            cutout: '70%', // робить діаграму тонким кільцем, як у Revolut
-            responsive: true,
-            maintainAspectRatio: true
-          }
-        });
-      }
+            }
+          },
+          cutout: '72%', // Елегантне тонке кільце, як у Revolut
+          responsive: true,
+          maintainAspectRatio: true
+        }
+      });
     }
-
   }
 
   document.getElementById('cat-filter').addEventListener('click', e => {
