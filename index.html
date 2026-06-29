@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -7,7 +6,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Мої витрати</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -40,6 +38,10 @@
     .stat-val.green { color:var(--green); }
     .stat-val.red { color:var(--red); }
     .stat-lbl { font-size:11px; color:var(--muted); margin-top:1px; }
+
+    /* Стилі для контейнера графіка */
+    .chart-container { background: var(--surface); border: 1px solid var(--border); margin: 18px 16px 0; padding: 16px; border-radius: var(--radius); display: flex; flex-direction: column; align-items: center; }
+    .chart-wrapper { width: 100%; max-width: 220px; margin-top: 10px; position: relative; }
 
     .section-header { display:flex; justify-content:space-between; align-items:center; padding:20px 20px 10px; }
     .section-title { font-size:15px; font-weight:600; }
@@ -140,7 +142,7 @@
 </div>
 
 <div class="summary-card">
-  <div class="summary-label">Витрачено цього місяця</div>
+  <div class="summary-label">Зароблено цього місяця</div>
   <div class="summary-amount" id="total-amount">0 <span>€</span></div>
   <div class="progress-row">
     <div class="progress-label">Дохід: <span id="budget-label">0 €</span></div>
@@ -158,17 +160,16 @@
     </div>
     <div class="stat">
       <div class="stat-val red" id="stat-biggest">0 €</div>
-      <div class="stat-lbl">Найбільша</div>
+      <div class="stat-lbl">Всього витрат</div>
     </div>
   </div>
 </div>
 
-<div style="margin: 18px 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px;">
-  <div style="font-size: 14px; font-weight: 600; margin-bottom: 15px; color: var(--text);">Статистика витрат</div>
-  <div style="position: relative; width: 100%; max-width: 240px; margin: 0 auto 15px;">
-    <canvas id="expenseChart"></canvas>
+<div class="chart-container" id="chart-section" style="display: none;">
+  <div class="section-title" style="align-self: flex-start;">Статистика витрат</div>
+  <div class="chart-wrapper">
+    <canvas id="expensesChart"></canvas>
   </div>
-  <div id="chart-legends-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 15px;"></div>
 </div>
 
 <div class="section-header">
@@ -186,7 +187,6 @@
   <div class="cat-chip" data-cat="bills"><div class="cat-icon">🏠</div><div class="cat-name">Абонплата</div></div>
   <div class="cat-chip" data-cat="work"><div class="cat-icon">💼</div><div class="cat-name">Робота</div></div>
   <div class="cat-chip" data-cat="other"><div class="cat-icon">📦</div><div class="cat-name">Інше</div></div>
-  
 </div>
 
 <div class="section-header">
@@ -200,9 +200,6 @@
   <button class="fab" id="add-btn">Витрата</button>
 </div>
 
-
-
-<!-- MODAL -->
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -237,7 +234,6 @@
       <div class="cat-pill" data-cat="bills">🏠 Абонплата</div>
       <div class="cat-pill" data-cat="work">💼 Робота</div>
       <div class="cat-pill" data-cat="other">📦 Інше</div>
-      
     </div>
 
     <div class="subcat-picker" id="subcat-picker">
@@ -262,7 +258,6 @@
       <div class="num-btn" data-d=".">.</div>
       <div class="num-btn" data-d="0">0</div>
       <div class="num-btn backspace-btn" data-d="del">⌫</div>
-      
     </div>
 
     <button class="save-btn expense" id="save-btn" disabled>Зберегти</button>
@@ -276,31 +271,32 @@
   const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxpquGHgLH8WQZ80XmAPjsGjDAe9vLkaIJx9cXvJI-4iCuD9alFU3bn7q6u7aQo39KI/exec';
   const STORAGE_KEY = 'expenses_v2';
   
-async function sheetsGet() { 
-  const res = await fetch(SHEETS_URL); 
-  const json = await res.json(); 
-  return json.expenses || []; 
-}
+  async function sheetsGet() { 
+    const res = await fetch(SHEETS_URL); 
+    const json = await res.json(); 
+    return json.expenses || []; 
+  }
   
   const CATS = {
-    food:       { label: 'Продукти',              icon: '🛒', subcats: ['E.Leclerc', 'SuperU', 'Інше'] },
-    restaurant: { label: 'Ресторани',             icon: '🍽️', subcats: [] },
-    car:        { label: 'Авто',                  icon: '🚗', subcats: ['Бензин', 'Страховка', 'Інше'] },
-    health:     { label: "Здоров'я",              icon: '💊', subcats: ['Медична перевірка', 'Дерматолог', 'Ліки'] },
-    fun:        { label: 'Розваги',               icon: '🎮', subcats: [] },
-    shopping:   { label: 'Покупки',               icon: '🛍️', subcats: ['Temu', 'Adidas', 'Інше'] },
-    bills:      { label: 'Абонплата',             icon: '🏠', subcats: ['Оренда', 'Підписки', 'Спортзал'] },
-    work:       { label: 'Робота',                icon: '💼', subcats: ['Проксі', 'хз', 'Інше'] },
-    other:      { label: 'Інше',                  icon: '📦', subcats: [] },
-    income :    { label: 'Дохід',                 icon: '💸', subcats: ['Зарплата','Продаж', 'Інше']}
+    food:       { label: 'Продукти',              icon: '🛒', subcats: ['E.Leclerc', 'SuperU', 'Інше'], color: '#ff5a5a' },
+    restaurant: { label: 'Ресторани',             icon: '🍽️', subcats: [], color: '#f5a623' },
+    car:        { label: 'Авто',                  icon: '🚗', subcats: ['Бензин', 'Страховка', 'Інше'], color: '#5f6fff' },
+    health:     { label: "Здоров'я",              icon: '💊', subcats: ['Медична перевірка', 'Дерматолог', 'Ліки'], color: '#4cce8a' },
+    fun:        { label: 'Розваги',               icon: '🎮', subcats: [], color: '#9b5de5' },
+    shopping:   { label: 'Покупки',               icon: '🛍️', subcats: ['Temu', 'Adidas', 'Інше'], color: '#f15bb5' },
+    bills:      { label: 'Абонплата',             icon: '🏠', subcats: ['Оренда', 'Підписки', 'Спортзал'], color: '#00f5d4' },
+    work:       { label: 'Робота',                icon: '💼', subcats: ['Проксі', 'хз', 'Інше'], color: '#a0aaff' },
+    other:      { label: 'Інше',                  icon: '📦', subcats: [], color: '#7a7f94' },
+    income :    { label: 'Дохід',                 icon: '💸', subcats: ['Зарплата','Продаж', 'Інше'], color: '#17b864'}
   };
 
   function loadLocal() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
   function saveLocal(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
 
-  let entries = loadLocal(); // витрати + доходи
+  let entries = loadLocal();
   let filterCat = 'all';
   let isSyncing = false;
+  let myChart = null; // Змінна для збереження екземпляру графіка
 
   function showSync(text) {
     let el = document.getElementById('sync-bar');
@@ -309,7 +305,6 @@ async function sheetsGet() {
   }
   function hideSync() { const el = document.getElementById('sync-bar'); if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 350); } }
 
-  async function sheetsGet() { const res = await fetch(SHEETS_URL); const json = await res.json(); return json.expenses || []; }
   async function sheetsAdd(e) { await fetch(SHEETS_URL, { method:'POST', body:JSON.stringify({ action:'add', ...e }) }); }
   async function sheetsDelete(id) { await fetch(SHEETS_URL, { method:'POST', body:JSON.stringify({ action:'delete', id }) }); }
 
@@ -321,7 +316,6 @@ async function sheetsGet() {
     isSyncing = false; render();
   }
 
-  // GREETING
   const hour = new Date().getHours();
   const greets = { morning:'Доброго ранку 🌅', day:'Доброго дня 👋', evening:'Доброго вечора 🌙', night:'Доброї ночі 🌙' };
   document.getElementById('greeting').textContent = hour<12?greets.morning:hour<17?greets.day:hour<22?greets.evening:greets.night;
@@ -332,14 +326,6 @@ async function sheetsGet() {
   document.getElementById('month-label').textContent = months[now.getMonth()];
 
   function formatAmt(n) { return n.toLocaleString('fr-FR', { maximumFractionDigits: 2 }); }
-
-  function formatDate(iso) {
-    const d = new Date(iso), today = new Date();
-    if (d.toDateString() === today.toDateString()) return 'Сьогодні, ' + d.toLocaleTimeString('uk', { hour:'2-digit', minute:'2-digit' });
-    const y = new Date(today); y.setDate(y.getDate()-1);
-    if (d.toDateString() === y.toDateString()) return 'Вчора, ' + d.toLocaleTimeString('uk', { hour:'2-digit', minute:'2-digit' });
-    return d.toLocaleDateString('uk', { day:'numeric', month:'short' }) + ', ' + d.toLocaleTimeString('uk', { hour:'2-digit', minute:'2-digit' });
-  }
 
   function getDayHeaderLabel(d) {
     const today = new Date();
@@ -361,6 +347,79 @@ async function sheetsGet() {
     `;
   }
 
+  // Функція для малювання та оновлення графіка за допомогою Chart.js
+  function renderChart(expensesList) {
+    const chartSection = document.getElementById('chart-section');
+    
+    if (expensesList.length === 0) {
+      chartSection.style.display = 'none';
+      return;
+    }
+    chartSection.style.display = 'flex';
+
+    const dataMap = {};
+    expensesList.forEach(e => {
+      dataMap[e.cat] = (dataMap[e.cat] || 0) + e.amount;
+    });
+
+    const categoriesKeys = Object.keys(dataMap);
+    const labels = categoriesKeys.map(cat => `${CATS[cat]?.icon || '📦'} ${CATS[cat]?.label || cat}`);
+    const dataValues = Object.values(dataMap);
+    const colors = categoriesKeys.map(cat => CATS[cat]?.color || '#5f6fff');
+
+    const ctx = document.getElementById('expensesChart').getContext('2d');
+
+    if (myChart) {
+      // Якщо графік вже створено, просто оновлюємо дані для плавної анімації
+      myChart.data.labels = labels;
+      myChart.data.datasets[0].data = dataValues;
+      myChart.data.datasets[0].backgroundColor = colors;
+      myChart.update();
+    } else {
+      // Ініціалізуємо новий сучасний графік-бублик
+      myChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: dataValues,
+            backgroundColor: colors,
+            borderWidth: 3,
+            borderColor: '#1a1d26', // Колір суміжних ліній відповідає --surface фону
+            hoverBorderWidth: 0
+          }]
+        },
+        options: {
+          cutout: '78%', // Тонкий та елегантний сучасний радіус
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }, // Приховуємо громіздку стандартну легенду
+            tooltip: {
+              backgroundColor: '#22263a',
+              titleColor: '#e8eaf0',
+              bodyColor: '#e8eaf0',
+              borderColor: 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 10,
+              displayColors: true,
+              callbacks: {
+                label: function(context) {
+                  return ` ${context.label}: ${context.raw.toFixed(2)} €`;
+                }
+              }
+            }
+          },
+          animation: {
+            duration: 800,
+            easing: 'easeOutQuart'
+          }
+        }
+      });
+    }
+  }
+
   function render() {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thisMonth = entries.filter(e => new Date(e.date) >= monthStart);
@@ -368,18 +427,21 @@ async function sheetsGet() {
     const incomes  = thisMonth.filter(e => e.type === 'income');
     const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
     const totalInc = incomes.reduce((s, e) => s + e.amount, 0);
-    const budget = totalInc;
-    const pct = budget > 0 ? Math.min(100, Math.round(totalExp / budget * 100)) : 0;
+    
+    const netProfit = totalInc - totalExp;
+    const pct = totalInc > 0 ? Math.min(100, Math.round(totalExp / totalInc * 100)) : 0;
 
-    document.getElementById('total-amount').innerHTML = formatAmt(totalExp) + ' <span>€</span>';
+    document.getElementById('total-amount').innerHTML = formatAmt(netProfit) + ' <span>€</span>';
     document.getElementById('budget-label').textContent = formatAmt(totalInc) + ' €';
     document.getElementById('pct-label').textContent = pct + '%';
     document.getElementById('progress-fill').style.width = pct + '%';
     document.getElementById('progress-fill').style.background = pct > 90 ? '#ff5a5a' : pct > 70 ? '#f5a623' : '#5f6fff';
     document.getElementById('stat-income').textContent = formatAmt(totalInc) + ' €';
-    document.getElementById('stat-count').textContent = expenses.length;
-    const biggest = expenses.length ? Math.max(...expenses.map(e => e.amount)) : 0;
-    document.getElementById('stat-biggest').textContent = formatAmt(biggest) + ' €';
+    document.getElementById('stat-count').textContent = thisMonth.length;
+    document.getElementById('stat-biggest').textContent = formatAmt(totalExp) + ' €';
+
+    // Рендеримо оновлений круговий графік для витрат поточного місяця
+    renderChart(expenses);
 
     const filtered = filterCat === 'all' ? thisMonth : thisMonth.filter(e => e.cat === filterCat);
     const list = document.getElementById('expenses-list');
@@ -387,166 +449,40 @@ async function sheetsGet() {
 
     if (filtered.length === 0) {
       list.innerHTML = '<div class="empty-state"><div class="empty-icon">💸</div><div class="empty-text">Транзакцій ще немає</div><div class="empty-hint">Натисни кнопку нижче щоб додати</div></div>';
-      return;
-    }
+    } else {
+      const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
+      let finalHtml = '';
+      let lastDateStr = '';
 
-    let expenseChartInstance = null;
+      sorted.forEach(e => {
+        const dateObj = new Date(e.date);
+        const dateStr = dateObj.toDateString();
 
-    // Сортуємо транзакції від новіших до старіших
-    const sorted = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
-    
-    let finalHtml = '';
-    let lastDateStr = '';
-
-    sorted.forEach(e => {
-      const dateObj = new Date(e.date);
-      const dateStr = dateObj.toDateString(); // отримуємо унікальний рядок дня (напр. "Mon Jun 22 2026")
-
-      // Якщо цей день відрізняється від попереднього — вставляємо заголовок дня
-      if (dateStr !== lastDateStr) {
-        lastDateStr = dateStr;
-        finalHtml += `<div class="day-group-header" style="padding: 16px 4px 6px; margin-top: 6px;">${getDayHeaderLabel(dateObj)}</div>`;
-      }
-
-      const isIncome = e.type === 'income';
-      const catInfo = CATS[e.cat] || { icon:'📦', label: e.cat };
-      const cls = isIncome ? 'income' : 'expense';
-      const subcatHtml = e.subcat ? `<div class="expense-subcat">${e.subcat}</div>` : '';
-      
-      // Оскільки є заголовок дня, в самій картці показуємо тільки точний час (години:хвилини)
-      const timeStr = dateObj.toLocaleTimeString('uk', { hour:'2-digit', minute:'2-digit' });
-
-      finalHtml += `
-        <div class="expense-item" onclick="if(typeof editEntry === 'function') editEntry('${e.id}')" style="cursor: pointer;">
-          <div class="expense-icon">${isIncome ? '💸' : catInfo.icon}</div>
-          <div class="expense-info">
-            <div class="expense-name">${e.desc || (isIncome ? 'Дохід' : catInfo.label)}</div>
-            ${subcatHtml}
-            <div class="expense-date" style="color: var(--muted); opacity: 0.7;">о ${timeStr}</div>
-          </div>
-          <div class="expense-amount ${cls}">${isIncome ? '+' : '−'} ${formatAmt(e.amount)} €</div>
-          <div class="expense-delete" onclick="event.stopPropagation(); deleteEntry('${e.id}')">✕</div>
-        </div>
-      `;
-    });
-
-    list.innerHTML = finalHtml;
-
-    // ==========================================
-    // ЛОГІКА ПОБУДОВИ КРУГОВОЇ ДІАГРАМИ (АНАЛІТИКА)
-    // ==========================================
-    const chartExpenses = expenses; // беремо витрати за поточний місяць
-    const categoryTotals = {};
-    
-    // Рахуємо суми для кожної категорії окремо
-    chartExpenses.forEach(e => {
-      categoryTotals[e.cat] = (categoryTotals[e.cat] || 0) + e.amount;
-    });
-
-    const totalExpForChart = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
-
-    // Масиви для даних графіка
-    const chartLabels = [];
-    const chartData = [];
-    const chartColors = [];
-    const legendsHtml = [];
-
-    // Палітра кольорів для гарного відображення категорій
-    const colorPalette = {
-      food: '#ff9f43',       restaurant: '#ff5252',
-      car: '#10ac84',        health: '#00d2d3',
-      fun: '#5f6fff',        shopping: '#ca69ff',
-      bills: '#ff6b6b',      work: '#54a0ff',
-      invest: '#5f27cd',     gym: '#00ea97',
-      other: '#8395a7'
-    };
-
-    // Сортуємо категорії від найбільшої суми витрат до найменшої (як на твоєму скріншоті)
-    const sortedCats = Object.keys(categoryTotals).sort((a, b) => categoryTotals[b] - categoryTotals[a]);
-
-    sortedCats.forEach(catKey => {
-      const amt = categoryTotals[catKey];
-      const pct = totalExpForChart > 0 ? Math.round((amt / totalExpForChart) * 100) : 0;
-      const catInfo = CATS[catKey] || { label: catKey, icon: '📦' };
-      const color = colorPalette[catKey] || '#8395a7';
-
-      chartLabels.push(catInfo.label);
-      chartData.push(amt);
-      chartColors.push(color);
-
-      // Генеруємо текстові рядки легенди (список знизу під графіком)
-      legendsHtml.push(`
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
-          <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="width: 38px; height: 38px; background: ${color}22; border: 1px solid ${color}44; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px;">
-              ${catInfo.icon}
-            </div>
-            <span style="font-size: 14px; font-weight: 500; color: var(--text);">${catInfo.label}</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 14px; font-weight: 700; color: #fff;">${formatAmt(amt)} €</span>
-            <span style="font-size: 11px; color: var(--muted); background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 6px; min-width: 38px; text-align: center;">${pct}%</span>
-          </div>
-        </div>
-      `);
-    });
-
-    document.getElementById('chart-legends-list').innerHTML = legendsHtml.join('') || '<div style="font-size:13px; color:var(--muted); text-align:center; padding:10px 0;">Немає даних для аналітики</div>';
-
-    // Ініціалізація або оновлення самого графіка Chart.js
-   // Ініціалізація або оновлення самого графіка Chart.js
-   // Ініціалізація або оновлення самого графіка Chart.js
-   const chartContainer = document.getElementById('expenseChart')?.parentElement;
-    if (chartContainer) {
-      // 1. Якщо графік вже існував — знищуємо його екземпляр
-      if (expenseChartInstance) {
-        expenseChartInstance.destroy();
-        expenseChartInstance = null;
-      }
-
-      // 2. Повністю очищуємо контейнер і створюємо новий чистий тег <canvas>
-      // Це назавжди прибирає помилку внутрішнього збою ініціалізації Chart.js!
-      chartContainer.innerHTML = '<canvas id="expenseChart"></canvas>';
-
-      // Якщо даних немає (наприклад, порожній місяць), залишаємо пустий контейнер і не малюємо бублик
-      if (chartData.length === 0) {
-        return;
-      }
-
-      // 3. Беремо нове чисте полотно
-      const newCtx = document.getElementById('expenseChart').getContext('2d');
-      
-      // 4. Створюємо новий чистий екземпляр кругової діаграми
-      expenseChartInstance = new Chart(newCtx, {
-        type: 'doughnut',
-        data: {
-          labels: chartLabels,
-          datasets: [{
-            data: chartData,
-            backgroundColor: chartColors,
-            borderWidth: 3,                 // Роздільні смужки між шматочками
-            borderColor: 'var(--surface)',  // Колір лінії під фон картки
-            hoverBorderWidth: 4,
-            hoverOffset: 4
-          }]
-        },
-        options: {
-          plugins: {
-            legend: { display: false }, // власна кастомна легенда з кружечками
-            tooltip: {
-              callbacks: {
-                label: function(context) {
-                  const value = context.raw || 0;
-                  return ` ${context.label}: ${formatAmt(value)} €`;
-                }
-              }
-            }
-          },
-          cutout: '72%', // Елегантне тонке кільце, як у Revolut
-          responsive: true,
-          maintainAspectRatio: true
+        if (dateStr !== lastDateStr) {
+          lastDateStr = dateStr;
+          finalHtml += `<div class="day-group-header" style="padding: 16px 4px 6px; margin-top: 6px;">${getDayHeaderLabel(dateObj)}</div>`;
         }
+
+        const isIncome = e.type === 'income';
+        const catInfo = CATS[e.cat] || { icon:'📦', label: e.cat };
+        const cls = isIncome ? 'income' : 'expense';
+        const subcatHtml = e.subcat ? `<div class="expense-subcat">${e.subcat}</div>` : '';
+        const timeStr = dateObj.toLocaleTimeString('uk', { hour:'2-digit', minute:'2-digit' });
+
+        finalHtml += `
+          <div class="expense-item" onclick="if(typeof editEntry === 'function') editEntry('${e.id}')" style="cursor: pointer;">
+            <div class="expense-icon">${isIncome ? '💸' : catInfo.icon}</div>
+            <div class="expense-info">
+              <div class="expense-name">${e.desc || (isIncome ? 'Дохід' : catInfo.label)}</div>
+              ${subcatHtml}
+              <div class="expense-date" style="color: var(--muted); opacity: 0.7;">о ${timeStr}</div>
+            </div>
+            <div class="expense-amount ${cls}">${isIncome ? '+' : '−'} ${formatAmt(e.amount)} €</div>
+            <div class="expense-delete" onclick="event.stopPropagation(); deleteEntry('${e.id}')">✕</div>
+          </div>
+        `;
       });
+      list.innerHTML = finalHtml;
     }
   }
 
@@ -558,7 +494,6 @@ async function sheetsGet() {
   });
 
   async function deleteEntry(id) {
-    // Функція розрахунку та видалення
     const proceedWithDeletion = async () => {
       if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
       entries = entries.filter(e => e.id !== id); 
@@ -574,7 +509,6 @@ async function sheetsGet() {
       }
     };
 
-    // Перевіряємо, чи Telegram підтримує метод showPopup (версія 6.2 і вище)
     if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) {
       tg.showPopup({
         title: 'Підтвердження',
@@ -583,28 +517,18 @@ async function sheetsGet() {
           { id: 'delete', type: 'destructive', text: 'Видалити' },
           { id: 'cancel', type: 'cancel', text: 'Скасувати' }
         ]
-      }, (buttonId) => {
-        if (buttonId === 'delete') {
-          proceedWithDeletion();
-        }
-      });
+      }, (buttonId) => { if (buttonId === 'delete') proceedWithDeletion(); });
     } else {
-      // Якщо версія Telegram 6.0 або додаток відкритий просто у браузері:
-      if (confirm('Ви впевнені, що хочете видалити цю транзакцію?')) {
-        proceedWithDeletion();
-      }
+      if (confirm('Ви впевнені, що хочете видалити цю транзакцію?')) proceedWithDeletion();
     }
   }
 
-  // MODAL
   let amountStr = '';
   let selectedCat = 'food';
   let selectedSubcat = '';
-  let currentType = 'expense'; // 'expense' | 'income'
-
+  let currentType = 'expense';
   let prevAmount = 0;
   let currentOp = '';
-
   let editingId = null;
 
   const modal = document.getElementById('modal');
@@ -617,12 +541,10 @@ async function sheetsGet() {
     amountStr = '';
     prevAmount = 0;
     currentOp = '';
-    // Якщо це дохід, то категорія автоматично 'income', якщо витрата — за замовчуванням 'food'
     selectedCat = type === 'income' ? 'income' : 'food'; 
     selectedSubcat = '';
     document.getElementById('desc-input').value = '';
     
-    // Set current datetime
     const d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('date-input').value = d.toISOString().slice(0,16);
@@ -631,13 +553,12 @@ async function sheetsGet() {
     saveBtn.className = 'save-btn ' + type;
     saveBtn.textContent = type === 'income' ? 'Зберегти дохід' : 'Зберегти витрату';
 
-    
     if (type === 'income') {
-      document.getElementById('cat-picker').style.display = 'none'; // ховаємо вибір інших категорій
-      updateSubcats('income'); // АВТОМАТИЧНО викликаємо підкатегорії доходу ('Зарплата', 'Продаж', 'Інше')
+      document.getElementById('cat-picker').style.display = 'none';
+      updateSubcats('income');
     } else {
-      document.getElementById('cat-picker').style.display = 'flex'; // показуємо категорії витрат
-      document.getElementById('subcat-picker').classList.remove('visible'); // ховаємо підкатегорії, поки не оберуть витрату
+      document.getElementById('cat-picker').style.display = 'flex';
+      document.getElementById('subcat-picker').classList.remove('visible');
       document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === 'food'));
     }
 
@@ -652,7 +573,7 @@ async function sheetsGet() {
     const entry = entries.find(e => e.id === id);
     if (!entry) return;
 
-    editingId = id; // Запам'ятовуємо, що ми редагуємо цей ID
+    editingId = id;
     currentType = entry.type;
     amountStr = entry.amount.toString();
     prevAmount = 0;
@@ -662,7 +583,6 @@ async function sheetsGet() {
 
     document.getElementById('desc-input').value = entry.desc || '';
     
-    // Форматування дати для інпуту datetime-local
     const d = new Date(entry.date);
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('date-input').value = d.toISOString().slice(0,16);
@@ -671,7 +591,6 @@ async function sheetsGet() {
     saveBtn.className = 'save-btn ' + currentType;
     saveBtn.textContent = 'Оновити запис';
 
-    // Налаштування категорій
     if (currentType === 'income') {
       document.getElementById('cat-picker').style.display = 'none';
       updateSubcats('income');
@@ -681,7 +600,6 @@ async function sheetsGet() {
       updateSubcats(selectedCat);
     }
 
-    // Активуємо обрану підкатегорію, якщо вона є
     if (selectedSubcat) {
       setTimeout(() => {
         document.querySelectorAll('.subcat-pill').forEach(p => p.classList.toggle('active', p.textContent === selectedSubcat));
@@ -698,7 +616,6 @@ async function sheetsGet() {
   document.getElementById('modal-close').addEventListener('click', closeModal);
   modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-  // SUBCATEGORIES
   function updateSubcats(cat) {
     const picker = document.getElementById('subcat-picker');
     const subcats = CATS[cat]?.subcats || [];
@@ -723,7 +640,6 @@ async function sheetsGet() {
     if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
   });
 
-  // NUMPAD
   document.querySelector('.numpad').addEventListener('click', e => {
     const btn = e.target.closest('.num-btn'); if (!btn) return;
     const d = btn.dataset.d;
@@ -733,36 +649,20 @@ async function sheetsGet() {
     }
     else if (d === '+' || d === '-' || d === '=') {
       let currentNum = parseFloat(amountStr) || 0;
-      
-      // Якщо попередня операція існує, виконуємо підрахунок
       if (currentOp) {
         if (currentOp === '+') prevAmount += currentNum;
         if (currentOp === '-') prevAmount = Math.max(0, prevAmount - currentNum);
-        
-        // Одразу виводимо результат на екран, щоб його було видно
         amountStr = prevAmount === 0 ? '' : prevAmount.toString();
       } else {
-        // Якщо це перша операція, просто запам'ятовуємо поточне число
-        if (d !== '=') {
-          prevAmount = currentNum;
-        }
+        if (d !== '=') prevAmount = currentNum;
       }
-      
-      // Якщо натиснуто знак операції (+ або -), запам'ятовуємо його і готуємося до нового введення
-      if (d === '+' || d === '-') {
-        currentOp = d;
-        amountStr = ''; // Очищуємо для введення другого числа
-      } else if (d === '=') {
-        // Якщо натиснуто "=", скидаємо операцію, а фінальний результат залишається на екрані
-        currentOp = '';
-        prevAmount = 0;
-      }
+      if (d === '+' || d === '-') { currentOp = d; amountStr = ''; }
+      else if (d === '=') { currentOp = ''; prevAmount = 0; }
     }
     else if (d === '.') { 
       if (!amountStr.includes('.')) amountStr += amountStr ? '.' : '0.'; 
     }
     else {
-      // Звичайні цифри (0-9)
       if (amountStr === '0') amountStr = d;
       else {
         if (amountStr.includes('.') && amountStr.split('.')[1]?.length >= 2) return;
@@ -770,7 +670,6 @@ async function sheetsGet() {
         amountStr += d;
       }
     }
-    
     if (tg?.HapticFeedback) tg.HapticFeedback.selectionChanged();
     updateAmount();
   });
@@ -780,8 +679,6 @@ async function sheetsGet() {
     saveBtn.disabled = !amountStr || parseFloat(amountStr) === 0;
   }
 
-  // SAVE
-  // SAVE
   saveBtn.addEventListener('click', async () => {
     let amount = parseFloat(amountStr);
     if (!amount || amount <= 0) return;
@@ -795,11 +692,10 @@ async function sheetsGet() {
     const dateVal = document.getElementById('date-input').value;
     
     if (editingId) {
-      // РЕЖИМ РЕДАКТУВАННЯ: Знаходимо і оновлюємо існуючий запис локально
       const index = entries.findIndex(e => e.id === editingId);
       if (index !== -1) {
         entries[index] = {
-          ...entries[index], // зберігаємо оригінальний id та інші незмінні поля
+          ...entries[index],
           type: currentType,
           amount,
           cat: currentType === 'income' ? 'income' : selectedCat,
@@ -807,27 +703,17 @@ async function sheetsGet() {
           desc: document.getElementById('desc-input').value.trim(),
           date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
         };
-        
         const updatedEntry = entries[index];
-        saveLocal(entries);
-        closeModal();
-        render();
-        
+        saveLocal(entries); closeModal(); render();
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        
-        // Відправка оновлення в Google Таблицю (спочатку видаляємо стару дію, потім додаємо нову з тим самим ID, або викликаємо add)
         try { 
           showSync('☁️ Оновлення...'); 
-          await sheetsDelete(editingId); // Видаляємо стару транзакцію на сервері
-          await sheetsAdd(updatedEntry); // Записуємо оновлену транзакцію
+          await sheetsDelete(editingId);
+          await sheetsAdd(updatedEntry);
           hideSync(); 
-        } catch { 
-          showSync('⚠️ Офлайн — оновлено локально'); 
-          setTimeout(hideSync, 2500); 
-        }
+        } catch { showSync('⚠️ Офлайн — оновлено локально'); setTimeout(hideSync, 2500); }
       }
     } else {
-      // РЕЖИМ СТВОРЕННЯ: Звичайне додавання нового запису
       const entry = {
         id: Date.now().toString(),
         type: currentType,
