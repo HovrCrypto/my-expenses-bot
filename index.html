@@ -2,6 +2,7 @@
 <html lang="uk">
 <head>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Підключаємо сучасну бібліотеку для графіків -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -39,9 +40,21 @@
     .stat-val.red { color:var(--red); }
     .stat-lbl { font-size:11px; color:var(--muted); margin-top:1px; }
 
-    /* Стилі для контейнера графіка */
-    .chart-container { background: var(--surface); border: 1px solid var(--border); margin: 18px 16px 0; padding: 16px; border-radius: var(--radius); display: flex; flex-direction: column; align-items: center; }
-    .chart-wrapper { width: 100%; max-width: 220px; margin-top: 10px; position: relative; }
+    /* Контейнер графіка */
+    .chart-container { background: var(--surface); border: 1px solid var(--border); margin: 18px 16px 0; padding: 18px; border-radius: var(--radius); display: flex; flex-direction: column; align-items: center; }
+    .chart-wrapper { width: 100%; max-width: 210px; margin: 10px 0 20px; position: relative; }
+
+    /* Стилі для кастомної легенди (дані під графіком) */
+    .custom-legend { width: 100%; display: flex; flex-direction: column; gap: 4px; }
+    .legend-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .legend-item:last-child { border-bottom: none; }
+    .legend-left { display: flex; align-items: center; gap: 12px; }
+    .legend-icon-wrap { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; background: var(--surface2); position: relative; }
+    .legend-icon-wrap::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid currentColor; opacity: 0.15; }
+    .legend-name { font-size: 14px; font-weight: 500; color: var(--text); }
+    .legend-right { display: flex; align-items: center; gap: 10px; }
+    .legend-amount { font-size: 14px; font-weight: 700; color: #fff; }
+    .legend-pct-badge { font-size: 11px; font-weight: 600; color: var(--muted); background: rgba(255,255,255,0.04); padding: 3px 8px; border-radius: 6px; min-width: 42px; text-align: center; }
 
     .section-header { display:flex; justify-content:space-between; align-items:center; padding:20px 20px 10px; }
     .section-title { font-size:15px; font-weight:600; }
@@ -165,11 +178,14 @@
   </div>
 </div>
 
+<!-- БЛОК: Контейнер для графіка та текстових даних -->
 <div class="chart-container" id="chart-section" style="display: none;">
   <div class="section-title" style="align-self: flex-start;">Статистика витрат</div>
   <div class="chart-wrapper">
     <canvas id="expensesChart"></canvas>
   </div>
+  <!-- Сюди автоматично рендеритиметься список даних з image_f421e3.png -->
+  <div class="custom-legend" id="chart-legend"></div>
 </div>
 
 <div class="section-header">
@@ -200,6 +216,7 @@
   <button class="fab" id="add-btn">Витрата</button>
 </div>
 
+<!-- MODAL -->
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -296,7 +313,7 @@
   let entries = loadLocal();
   let filterCat = 'all';
   let isSyncing = false;
-  let myChart = null; // Змінна для збереження екземпляру графіка
+  let myChart = null;
 
   function showSync(text) {
     let el = document.getElementById('sync-bar');
@@ -347,36 +364,38 @@
     `;
   }
 
-  // Функція для малювання та оновлення графіка за допомогою Chart.js
-  function renderChart(expensesList) {
+  // Функція для малювання графіка та генерації кастомної легенди під ним
+  function renderChart(expensesList, totalExpensesAmount) {
     const chartSection = document.getElementById('chart-section');
+    const legendContainer = document.getElementById('chart-legend');
     
-    if (expensesList.length === 0) {
+    if (expensesList.length === 0 || totalExpensesAmount <= 0) {
       chartSection.style.display = 'none';
       return;
     }
     chartSection.style.display = 'flex';
 
+    // Групуємо витрати за категоріями
     const dataMap = {};
     expensesList.forEach(e => {
       dataMap[e.cat] = (dataMap[e.cat] || 0) + e.amount;
     });
 
-    const categoriesKeys = Object.keys(dataMap);
-    const labels = categoriesKeys.map(cat => `${CATS[cat]?.icon || '📦'} ${CATS[cat]?.label || cat}`);
-    const dataValues = Object.values(dataMap);
-    const colors = categoriesKeys.map(cat => CATS[cat]?.color || '#5f6fff');
+    // Сортуємо категорії за спаданням суми (як на картинці)
+    const sortedCategories = Object.keys(dataMap).sort((a, b) => dataMap[b] - dataMap[a]);
 
+    const labels = sortedCategories.map(cat => `${CATS[cat]?.icon || '📦'} ${CATS[cat]?.label || cat}`);
+    const dataValues = sortedCategories.map(cat => dataMap[cat]);
+    const colors = sortedCategories.map(cat => CATS[cat]?.color || '#5f6fff');
+
+    // 1. Оновлюємо або створюємо круговий графік
     const ctx = document.getElementById('expensesChart').getContext('2d');
-
     if (myChart) {
-      // Якщо графік вже створено, просто оновлюємо дані для плавної анімації
       myChart.data.labels = labels;
       myChart.data.datasets[0].data = dataValues;
       myChart.data.datasets[0].backgroundColor = colors;
       myChart.update();
     } else {
-      // Ініціалізуємо новий сучасний графік-бублик
       myChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -385,16 +404,16 @@
             data: dataValues,
             backgroundColor: colors,
             borderWidth: 3,
-            borderColor: '#1a1d26', // Колір суміжних ліній відповідає --surface фону
+            borderColor: '#1a1d26',
             hoverBorderWidth: 0
           }]
         },
         options: {
-          cutout: '78%', // Тонкий та елегантний сучасний радіус
+          cutout: '78%',
           responsive: true,
           maintainAspectRatio: true,
           plugins: {
-            legend: { display: false }, // Приховуємо громіздку стандартну легенду
+            legend: { display: false },
             tooltip: {
               backgroundColor: '#22263a',
               titleColor: '#e8eaf0',
@@ -403,7 +422,6 @@
               borderWidth: 1,
               padding: 12,
               cornerRadius: 10,
-              displayColors: true,
               callbacks: {
                 label: function(context) {
                   return ` ${context.label}: ${context.raw.toFixed(2)} €`;
@@ -411,13 +429,34 @@
               }
             }
           },
-          animation: {
-            duration: 800,
-            easing: 'easeOutQuart'
-          }
+          animation: { duration: 800, easing: 'easeOutQuart' }
         }
       });
     }
+
+    // 2. Рендеримо текстову легенду з відсотками під графіком (як на картинці image_f421e3.png)
+    let legendHtml = '';
+    sortedCategories.forEach(cat => {
+      const amt = dataMap[cat];
+      const pct = Math.round((amt / totalExpensesAmount) * 100);
+      const catInfo = CATS[cat] || { label: cat, icon: '📦', color: '#7a7f94' };
+
+      legendHtml += `
+        <div class="legend-item">
+          <div class="legend-left">
+            <div class="legend-icon-wrap" style="color: ${catInfo.color};">
+              ${catInfo.icon}
+            </div>
+            <div class="legend-name">${catInfo.label}</div>
+          </div>
+          <div class="legend-right">
+            <div class="legend-amount">${formatAmt(amt)} €</div>
+            <div class="legend-pct-badge">${pct}%</div>
+          </div>
+        </div>
+      `;
+    });
+    legendContainer.innerHTML = legendHtml;
   }
 
   function render() {
@@ -440,8 +479,8 @@
     document.getElementById('stat-count').textContent = thisMonth.length;
     document.getElementById('stat-biggest').textContent = formatAmt(totalExp) + ' €';
 
-    // Рендеримо оновлений круговий графік для витрат поточного місяця
-    renderChart(expenses);
+    // Малюємо графік та список даних під ним
+    renderChart(expenses, totalExp);
 
     const filtered = filterCat === 'all' ? thisMonth : thisMonth.filter(e => e.cat === filterCat);
     const list = document.getElementById('expenses-list');
